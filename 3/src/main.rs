@@ -1,90 +1,182 @@
-// Метка todo - реализовать самостоятельно
-
-// ***** Пример библиотеки "Умный дом" со статическим содержимым
-
-struct SmartHouse<'a> {
-    name: &'a str,
-    rooms: Vec<SmartRoom<'a>>,
-}
-struct SmartRoom<'a> {
-    name: &'a str,
-    devices: Vec<SmartDevices<'a>>,
-}
-struct SmartDevices<'a> {
-    name: &'a str,
-}
-impl SmartRoom {
-    fn new() -> Self {}
-}
-impl SmartHouse {
-    fn new() -> Self {
-        name = &str("Default_Name");
-        rooms = Vec::new();
-    }
-
-    fn get_rooms(&self) -> [&str; 2] {
-        // Размер возвращаемого массива можно выбрать самостоятельно
-        todo!("список комнат")
-    }
-
-    fn devices(&self, room: &str) -> [&str; 3] {
-        // Размер возвращаемого массива можно выбрать самостоятельно
-        todo!("список устройств в комнате `room`")
-    }
-
-    fn create_report(
-        &self,
-        /* todo: принять обобщённый тип предоставляющий информацию об устройствах */
-    ) -> String {
-        todo!("перебор комнат и устройств в них для составления отчёта")
-    }
-}
-
-trait DeviceInfoProvider {
-    // todo: метод, возвращающий состояние устройства по имени комнаты и имени устройства
-}
-
-// ***** Пример использования библиотеки умный дом:
-
-// Пользовательские устройства:
-struct SmartSocket {}
-struct SmartThermometer {}
-
-// Пользовательские поставщики информации об устройствах.
-// Могут как хранить устройства, так и заимствывать.
-struct OwningDeviceInfoProvider {
-    socket: SmartSocket,
-}
-struct BorrowingDeviceInfoProvider<'a, 'b> {
-    socket: &'a SmartSocket,
-    thermo: &'b SmartThermometer,
-}
-
-// todo: реализация трейта `DeviceInfoProvider` для поставщиков информации
+use std::process::exit;
+//use std::thread::sleep;
+//use std::time::Duration;
 
 fn main() {
-    // Инициализация устройств
-    let socket1 = SmartSocket {};
-    let socket2 = SmartSocket {};
-    let thermo = SmartThermometer {};
+    let mut home: SMHomeItem = SMHome::new("Home-01");
+    let mut room: SMRoom = SMRoom::new(&home.name, 01);
+    let term = Box::new(SMTerm::new(
+        "Smart Thermometer-01",
+        "11:22:33:44:55:66",
+        22.5,
+    ));
+    let sock = Box::new(SMSock::new("Smart Socket-01", "00:11:22:33:44:55", 0.0));
+    room.add_device(term);
+    room.add_device(sock);
+    home.add_room(room);
+    home.home_info();
+    //home.remove_room();
+    exit(0);
+}
 
-    // Инициализация дома
-    let house = SmartHouse::new();
+/*trait DeviceInfoProvider {
+    fn get_device_state_by_name(room_name: &str, device_name: &str);
+}*/
 
-    // Строим отчёт с использованием `OwningDeviceInfoProvider`.
-    let info_provider_1 = OwningDeviceInfoProvider { socket: socket1 };
-    // todo: после добавления обобщённого аргумента в метод, расскоментировать передачу параметра
-    let report1 = house.create_report(/* &info_provider_1 */);
+trait SMHome {
+    fn new(name: &str) -> Self;
+    //fn get_rooms(&self) -> Vec<SmartDevice>;
+    // fn devices(&self, room: &str) -> [&str; 3];
+    // fn create_report(&self,SMRoom) -> String;
+    fn home_info(&self);
+    fn add_room(&mut self, room: SMRoom);
+    fn remove_room(&mut self);
+}
 
-    // Строим отчёт с использованием `BorrowingDeviceInfoProvider`.
-    let info_provider_2 = BorrowingDeviceInfoProvider {
-        socket: &socket2,
-        thermo: &thermo,
-    };
-    // todo: после добавления обобщённого аргумента в метод, расскоментировать передачу параметра
-    let report2 = house.create_report(/* &info_provider_2 */);
+//SmartHome
+struct SMHomeItem {
+    name: String,
+    rooms: Vec<SMRoom>,
+}
 
-    // Выводим отчёты на экран:
-    println!("Report #1: {report1}");
-    println!("Report #2: {report2}");
+impl SMHome for SMHomeItem {
+    fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            rooms: Vec::with_capacity(4),
+        }
+    }
+
+    fn home_info(&self) {
+        for room in &self.rooms {
+            println!("Rooms {:?}", room);
+        }
+        println!("Home:{} rooms count: {}", &self.name, &self.rooms.len());
+    }
+
+    fn add_room(&mut self, room: SMRoom) {
+        println!("{}", room.name);
+        for _item in &room.devices {
+            println!("Devices");
+        }
+        self.rooms.push(room);
+    }
+
+    fn remove_room(&mut self) {
+        self.rooms.pop();
+    }
+
+    //fn get_rooms(&self) -> [&str; 2];
+    //fn devices(&self, room: &str) -> [&str; 3];
+    //fn create_report(&self,SMDevice) -> String;
+}
+//Smart room
+#[derive(Debug)]
+struct SMRoom {
+    name: String,
+    devices: Vec<Box<dyn SmartDevice>>,
+}
+impl SMRoom {
+    fn new(home_name: &str, room_number: u32) -> Self {
+        Self {
+            name: format!("{}/{}", home_name, room_number.to_string()),
+            devices: Vec::with_capacity(2),
+        }
+    }
+
+    fn add_device(&mut self, device: Box<dyn SmartDevice>) {
+        println!("{} adding device", &self.name);
+        self.devices.push(device);
+    }
+}
+
+//Smart device
+trait SmartDevice: std::fmt::Debug {
+    fn new(model_name: &str, mac_addr: &str, messure_val: f64) -> Self
+    where
+        Self: Sized;
+    fn power_on(&mut self);
+    fn power_off(&mut self);
+    fn make_measure(&self);
+    fn info(&self);
+}
+//SmartDevice
+//sock
+#[derive(Debug)]
+struct SMSock {
+    model_name: String,
+    mac_addr: String,
+    messure_val: f64,
+    is_on: bool,
+}
+
+impl SmartDevice for SMSock {
+    fn new(model_name: &str, mac_addr: &str, messure_val: f64) -> Self {
+        Self {
+            model_name: model_name.to_string(),
+            mac_addr: mac_addr.to_string(),
+            messure_val,
+            is_on: false,
+        }
+    }
+
+    fn power_on(&mut self) {
+        self.is_on = true;
+        println!(
+            "Socket device name:{} MAC{} is powered up",
+            &self.model_name, &self.mac_addr
+        );
+    }
+
+    fn power_off(&mut self) {
+        self.is_on = false;
+        println!("Socket is powered off");
+    }
+
+    fn make_measure(&self) {
+        println!("Current power: {}", self.messure_val);
+    }
+    fn info(&self) {
+        println!("DeviceInfo: {}", &self.model_name);
+    }
+}
+
+//term
+#[derive(Debug)]
+struct SMTerm {
+    model_name: String,
+    mac_addr: String,
+    messure_val: f64,
+    is_on: bool,
+}
+
+impl SmartDevice for SMTerm {
+    fn new(model_name: &str, mac_addr: &str, messure_val: f64) -> Self {
+        Self {
+            model_name: model_name.to_string(),
+            mac_addr: mac_addr.to_string(),
+            messure_val,
+            is_on: false,
+        }
+    }
+
+    fn power_on(&mut self) {
+        self.is_on = true;
+        println!(
+            "Term device name:{} MAC:{} is powered up",
+            &self.model_name, &self.mac_addr
+        );
+    }
+
+    fn power_off(&mut self) {
+        self.is_on = false;
+        println!("Term device is powered off");
+    }
+
+    fn make_measure(&self) {
+        println!("Current temperature: {}", self.messure_val);
+    }
+    fn info(&self) {
+        println!("DeviceInfo: {}", &self.model_name);
+    }
 }
